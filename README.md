@@ -69,7 +69,7 @@ GitTrend AI is a modern web application that leverages Google's Gemini AI to hel
    npm run dev
    ```
 
-5. Open your browser and navigate to `http://localhost:5173`
+5. Open your browser and navigate to `http://localhost:3000`
 
 ## 📚 Usage
 
