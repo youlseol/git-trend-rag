@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Github, User, ArrowRight, Sparkles, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Github, User, ArrowRight, Sparkles, ChevronLeft, ChevronRight, Loader2, ArrowUpDown } from 'lucide-react';
 import RepoCard from './RepoCard';
 import { Repo } from '../types';
 import { fetchAllUserStars } from '../services/githubService';
@@ -10,7 +10,6 @@ const ITEMS_PER_PAGE = 12;
 const StarsView: React.FC = () => {
   // Input State
   const [username, setUsername] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Simple filter
   const [aiQuery, setAiQuery] = useState('');       // Natural language query
   
   // Data State
@@ -19,6 +18,7 @@ const StarsView: React.FC = () => {
   const [displayRepos, setDisplayRepos] = useState<Repo[]>([]); // Currently filtered list
   
   // UI State
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc' | 'recent'>('desc');
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0); // Count of loaded repos
   const [error, setError] = useState<string | null>(null);
@@ -84,28 +84,26 @@ const StarsView: React.FC = () => {
       setCurrentPage(1);
   };
 
-  // Simple Filter Logic (Client-side fast filter)
-  useEffect(() => {
-      if (aiQuery) return; // Don't override AI search results with simple filter unless cleared
+  // Cache original order for "Recently Added" sort
+  const repoOrderMap = useMemo(() => {
+    const map = new Map<string | number, number>();
+    allRepos.forEach((repo, index) => map.set(repo.id, index));
+    return map;
+  }, [allRepos]);
 
-      if (!searchTerm.trim()) {
-          setDisplayRepos(allRepos);
-      } else {
-          const lowerTerm = searchTerm.toLowerCase();
-          const filtered = allRepos.filter(repo => 
-            repo.name.toLowerCase().includes(lowerTerm) || 
-            (repo.description && repo.description.toLowerCase().includes(lowerTerm)) ||
-            (repo.language && repo.language.toLowerCase().includes(lowerTerm))
-          );
-          setDisplayRepos(filtered);
-          setCurrentPage(1);
+  // Sorting Logic
+  const sortedRepos = [...displayRepos].sort((a, b) => {
+      if (sortOrder === 'recent') {
+          return (repoOrderMap.get(a.id) ?? 0) - (repoOrderMap.get(b.id) ?? 0);
       }
-  }, [searchTerm, allRepos, aiQuery]);
-
+      return sortOrder === 'asc' 
+        ? a.stargazers_count - b.stargazers_count 
+        : b.stargazers_count - a.stargazers_count;
+  });
 
   // Pagination Logic
-  const totalPages = Math.ceil(displayRepos.length / ITEMS_PER_PAGE);
-  const paginatedRepos = displayRepos.slice(
+  const totalPages = Math.ceil(sortedRepos.length / ITEMS_PER_PAGE);
+  const paginatedRepos = sortedRepos.slice(
       (currentPage - 1) * ITEMS_PER_PAGE,
       currentPage * ITEMS_PER_PAGE
   );
@@ -213,17 +211,21 @@ const StarsView: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Simple Filter */}
-                    <div className="relative sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                        <input 
-                            type="text" 
-                            placeholder="Filter by name..."
-                            value={searchTerm}
-                            disabled={!!aiQuery}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className={`w-full bg-dark-900 border border-gray-700 rounded-lg py-2 pl-9 pr-4 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-brand-500 ${aiQuery ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        />
+                    {/* Sort Control */}
+                    <div className="relative sm:w-56">
+                        <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                        <select 
+                            value={sortOrder}
+                            onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc' | 'recent')}
+                            className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2 pl-9 pr-8 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-brand-500 appearance-none cursor-pointer hover:border-brand-500/50 transition-colors"
+                        >
+                            <option value="desc">Stars: High to Low</option>
+                            <option value="asc">Stars: Low to High</option>
+                            <option value="recent">Recently Added</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
                     </div>
                 </div>
             </div>
